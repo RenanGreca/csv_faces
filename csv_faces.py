@@ -31,8 +31,6 @@ def find_components(graph):
     # this goes through the nodes in the graph and adds all connected ones to one component
     for key, node in graph.items():
         ino = 0
-        if not os.path.exists("output/"+str(cno)):
-            os.makedirs("output/"+str(cno))
         if key not in visited:
             visited.append(key)
             component = [key]
@@ -44,6 +42,8 @@ def find_components(graph):
                         visited.append(link)
                         if link not in component:
                             component.append(link)
+                            if not os.path.exists("output/"+str(cno)):
+                                os.makedirs("output/"+str(cno))
                             urllib.urlretrieve(link, "output/"+str(cno)+"/"+str(ino)+".jpg")
                             ino+=1
                             if link not in queue:
