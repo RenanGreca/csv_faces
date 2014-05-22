@@ -28,6 +28,9 @@ class Node(object):
         other._edges.add((self, weight))
 """
 
+# find_path and max_flow were mostly copied from Wikipedia
+# they are the sample implementation of the Ford-Fulkerson algorithm
+
 def find_path(self, source, sink, path):
     if source == sink:
         return path
@@ -51,57 +54,51 @@ def max_flow(self, source, sink):
 
 
 def find_components(graph):
-    visited = []
-    components = []
-    cno = 0
+    visited = [] # stores visited nodes to avoid redundancy
+    components = [] # stores the list of components that will be returned
+    cno = 0 # increments for each component
     
     # this goes through the nodes in the graph and adds all connected ones to one component
     for key, node in graph.items():
-        #print key
-        #print xy
-        #print node
-        ino = 0
         if key not in visited:
             visited.append(key)
             component = [key]
-            queue = [key]
+            queue = [key] # queue of images that will be checked for this component
             while queue:
-                #print queue.pop(0)
                 n = graph[queue.pop(0)]
-                #print n
-                for (link, rect, weight) in n:
-                    if (link, rect) not in visited: 
-                        visited.append((link, rect))
-                        if (link, rect) not in component:
-                            component.append((link, rect))
+                for (img_url, rect, weight) in n:
+                    img_key = (img_url, rect)
+                    if img_key not in visited:
+                        visited.append(img_key)
+                        if img_key not in component:
+                            component.append(img_key)
+
+                            # this creates directories if necessary
                             if not os.path.exists("output/"+str(cno)):
                                 os.makedirs("output/"+str(cno))
 
-                            path = urlparse.urlsplit(link).path
                             # gets just the file name, no directories nor extension
+                            path = urlparse.urlsplit(img_url).path
                             filename = posixpath.basename(posixpath.splitext(path)[0])
-                            #print filename
 
-                            urllib.urlretrieve(link, "output/"+str(cno)+"/"+filename+".jpg")
-
+                            # downloads and opens the image file
+                            urllib.urlretrieve(img_url, "output/"+str(cno)+"/"+filename+".jpg")
                             image = Image.open("output/"+str(cno)+"/"+filename+".jpg")
                             width, height = image.size
                             
-                            #print(link[1])
+                            # finds the int pixel values for the face rectangle
                             x1 = int(width*rect[0]) #left edge
                             x2 = int(width*rect[1]) #right
                             y1 = int(height*rect[2]) #upper
                             y2 = int(height*rect[3]) #lower
 
+                            # cuts the face rectangle and stores it in a new file
                             box = (x1, y1, x2, y2)
-                            #print box
-                            #print width, height
                             region = image.crop(box)
                             region.save("output/"+str(cno)+"/"+filename+"_"+str(x1)+"_"+str(y1)+"_"+str(x2)+"_"+str(y2)+".jpg", "JPEG")
 
-                            ino+=1
-                            if (link, rect) not in queue:
-                                queue.append((link, rect))
+                            if img_key not in queue:
+                                queue.append(img_key)
 
             components.append(component)
             cno+=1
@@ -116,15 +113,18 @@ with open('a402549.csv', 'rb') as csvfile:
     graph = {}
 
     for row in data:
+        img1_url = row[17] # row[17] is the URL of the first image
+        img2_url = row[18] # row[18] is the URL of the second image
+
         x1_1 = float(row[19]) #left edge
         x2_1 = float(row[21]) #right
         y1_1 = float(row[23]) #upper
         y2_1 = float(row[25]) #lower
 
-        row[17] = row[17].lstrip() #strips leading spaces that show up sometimes
-        # row[17] is the URL of the first image
-        if (row[17], (x1_1,x2_1,y1_1,y2_1)) not in graph:
-            graph[(row[17], (x1_1,x2_1,y1_1,y2_1))] = []
+        img1_url = img1_url.lstrip() #strips leading spaces that show up sometimes
+        img1_key = (img1_url, (x1_1,x2_1,y1_1,y2_1)) 
+        if img1_key not in graph:
+            graph[img1_key] = []
 
 
         x1_2 = float(row[20]) #left edge
@@ -132,20 +132,17 @@ with open('a402549.csv', 'rb') as csvfile:
         y1_2 = float(row[24]) #upper
         y2_2 = float(row[26]) #lower
 
-        row[18] = row[18].lstrip() #strips leading spaces that show up sometimes
-        # row[18] is the URL of the second image
-        if (row[18], (x1_2,x2_2,y1_2,y2_2)) not in graph:
-            graph[(row[18], (x1_2,x2_2,y1_2,y2_2))] = []
+        img2_url = img2_url.lstrip() #strips leading spaces that show up sometimes
+        img2_key = (img2_url, (x1_2,x2_2,y1_2,y2_2))
+        if img2_key not in graph:
+            graph[img2_key] = []
 
         # row[6] contains 'same' or 'not_same'
         # row[7] is the confidence
-        #print row[6], row[7]
         if (row[6] == 'same') and (float(row[7]) == 1.0):
-            #print (row[17], (x1_1,x2_1,y1_1,y2_1)), ' and ', (row[18], (x1_2,x2_2,y1_2,y2_2)), ' are the same face'
-            graph[(row[17], (x1_1,x2_1,y1_1,y2_1))].append((row[18], (x1_2,x2_2,y1_2,y2_2), row[7]))
-            graph[(row[18], (x1_2,x2_2,y1_2,y2_2))].append((row[17], (x1_1,x2_1,y1_1,y2_1), row[7]))
+            graph[img1_key].append((img2_key, row[7])) #not sure if we need to store the confidence if we're just getting 1.0
+            graph[img2_key].append((img1_key, row[7]))
 
-    #print graph[('http://farm6.static.flickr.com/5047/5263446926_6a22710e0e_b.jpg', (0.322108, 0.828697, 0.155273, 0.493164))]
     print graph
-    #find_components(graph)
+    #components = find_components(graph)
     
